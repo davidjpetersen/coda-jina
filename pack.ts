@@ -23,6 +23,156 @@ const ContentSchema = coda.makeObjectSchema({
   idProperty: "id",
   featuredProperties: ["title", "url"],
 });
+// -----------------------
+// Reader API
+// -----------------------
+pack.addFormula({
+  name: "ReadContent",
+  description: "Retrieve and parse content from a URL using the Jina.ai Reader API. Header options can be specified separately.",
+  parameters: [
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "url",
+      description: "The URL to retrieve content from.",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xEngine",
+      description: "Optional: Specifies the engine to use. Use 'readerlm-v2' for higher quality or 'direct' for speed.",
+      optional: true,
+      suggestions: ["readerlm-v2", "direct"],
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Number,
+      name: "xTimeout",
+      description: "Optional: Maximum time (in seconds) to wait for the webpage to load.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xTargetSelector",
+      description: "Optional: CSS selectors to focus on specific elements within the page.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xWaitForSelector",
+      description: "Optional: CSS selectors to wait for specific elements before returning.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xRemoveSelector",
+      description: "Optional: CSS selectors to exclude certain parts of the page (e.g., headers, footers).",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "xWithLinksSummary",
+      description: "Optional: Set to true to gather all links at the end of the response.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "xWithImagesSummary",
+      description: "Optional: Set to true to gather all images at the end of the response.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "xWithGeneratedAlt",
+      description: "Optional: Set to true to add alt text to images lacking captions.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "xNoCache",
+      description: "Optional: Set to true to bypass cache for fresh retrieval.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "xWithIframe",
+      description: "Optional: Set to true to include iframe content in the response.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xReturnFormat",
+      description: "Optional: Specify the return format: markdown, html, text, screenshot, or pageshot.",
+      optional: true,
+      suggestions: ["markdown", "html", "text", "screenshot", "pageshot"],
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Number,
+      name: "xTokenBudget",
+      description: "Optional: Maximum number of tokens to use for the request.",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "xRetainImages",
+      description: "Optional: Use 'none' to remove all images from the response.",
+      optional: true,
+      suggestions: ["none"],
+    }),
+  ],
+  resultType: coda.ValueType.Object,
+  schema: ContentSchema,
+  execute: async function (
+    [
+      url,
+      xEngine,
+      xTimeout,
+      xTargetSelector,
+      xWaitForSelector,
+      xRemoveSelector,
+      xWithLinksSummary,
+      xWithImagesSummary,
+      xWithGeneratedAlt,
+      xNoCache,
+      xWithIframe,
+      xReturnFormat,
+      xTokenBudget,
+      xRetainImages,
+    ],
+    context
+  ) {
+    let apiUrl = "https://r.jina.ai/";
+    let payload: any = { url };
+
+    // Build request headers with required defaults.
+    let headers: { [key: string]: string } = {
+      "Authorization": `Bearer ${context.endpoint}`,
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+    };
+
+    // Add optional headers if provided.
+    if (xEngine) headers["X-Engine"] = xEngine;
+    if (xTimeout !== undefined) headers["X-Timeout"] = String(xTimeout);
+    if (xTargetSelector) headers["X-Target-Selector"] = xTargetSelector;
+    if (xWaitForSelector) headers["X-Wait-For-Selector"] = xWaitForSelector;
+    if (xRemoveSelector) headers["X-Remove-Selector"] = xRemoveSelector;
+    if (xWithLinksSummary === true) headers["X-With-Links-Summary"] = "true";
+    if (xWithImagesSummary === true) headers["X-With-Images-Summary"] = "true";
+    if (xWithGeneratedAlt === true) headers["X-With-Generated-Alt"] = "true";
+    if (xNoCache === true) headers["X-No-Cache"] = "true";
+    if (xWithIframe === true) headers["X-With-Iframe"] = "true";
+    if (xReturnFormat) headers["X-Return-Format"] = xReturnFormat;
+    if (xTokenBudget !== undefined) headers["X-Token-Budget"] = String(xTokenBudget);
+    if (xRetainImages) headers["X-Retain-Images"] = xRetainImages;
+
+    let response = await context.fetcher.fetch({
+      method: "POST",
+      url: apiUrl,
+      headers: headers,
+      body: JSON.stringify(payload),
+    });
+
+    return response.body.data;
+  },
+});
 
 // -----------------------
 // Embeddings API
@@ -115,38 +265,6 @@ pack.addFormula({
   },
 });
 
-// -----------------------
-// Reader API
-// -----------------------
-pack.addFormula({
-  name: "ReadContent",
-  description: "Retrieve and parse content from a URL using the Jina.ai Reader API.",
-  parameters: [
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "url",
-      description: "The URL to retrieve content from.",
-    }),
-  ],
-  resultType: coda.ValueType.Object,
-  schema: ContentSchema,
-  execute: async function ([url], context) {
-    // The Reader API endpoint converts the URL into LLM-friendly content.
-    let apiUrl = "https://r.jina.ai/";
-    let response = await context.fetcher.fetch({
-      method: "POST",
-      url: apiUrl,
-      headers: {
-        "Authorization": `Bearer ${context.endpoint}`,
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url: url }),
-    });
-    // Return the data (assumes content is in response.data).
-    return response.body.data;
-  },
-});
 
 // -----------------------
 // Search API
@@ -205,13 +323,15 @@ pack.addFormula({
       factuality: { type: coda.ValueType.Number },
       result: { type: coda.ValueType.Boolean },
       reason: { type: coda.ValueType.String },
-      references: { type: coda.ValueType.Array, items: coda.makeObjectSchema({
-        properties: {
-          url: { type: coda.ValueType.String, codaType: coda.ValueHintType.Url },
-          keyQuote: { type: coda.ValueType.String },
-          isSupportive: { type: coda.ValueType.Boolean },
-        },
-      })},
+      references: {
+        type: coda.ValueType.Array, items: coda.makeObjectSchema({
+          properties: {
+            url: { type: coda.ValueType.String, codaType: coda.ValueHintType.Url },
+            keyQuote: { type: coda.ValueType.String },
+            isSupportive: { type: coda.ValueType.Boolean },
+          },
+        })
+      },
     },
   }),
   execute: async function ([statement], context) {
@@ -313,95 +433,5 @@ pack.addFormula({
       }),
     });
     return response.body.data;
-  },
-});
-
-// -----------------------
-// (Optional) Additional Reader Formulas
-// These formulas use legacy endpoints for content search and related content fetching.
-// Depending on your needs you may keep, update, or remove these.
-
-// Fetch content by query (legacy endpoint)
-pack.addFormula({
-  name: "FetchContent",
-  description: "Fetch content by query using the legacy Jina.ai Reader API.",
-  parameters: [
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "query",
-      description: "The query to search for content.",
-    }),
-  ],
-  resultType: coda.ValueType.Array,
-  items: ContentSchema,
-  execute: async function ([query], context) {
-    let url = coda.withQueryParams("https://api.jina.ai/reader/search", { query: query });
-    let response = await context.fetcher.fetch({
-      method: "GET",
-      url: url,
-    });
-    return response.body.items.map(item => ({
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      url: item.url,
-    }));
-  },
-});
-
-// Fetch specific content by ID (legacy endpoint)
-pack.addFormula({
-  name: "FetchContentById",
-  description: "Fetch specific content by ID using the legacy Jina.ai Reader API.",
-  parameters: [
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "id",
-      description: "The content ID to fetch.",
-    }),
-  ],
-  resultType: coda.ValueType.Object,
-  schema: ContentSchema,
-  execute: async function ([id], context) {
-    let url = `https://api.jina.ai/reader/content/${id}`;
-    let response = await context.fetcher.fetch({
-      method: "GET",
-      url: url,
-    });
-    let item = response.body;
-    return {
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      url: item.url,
-    };
-  },
-});
-
-// Fetch related content (legacy endpoint)
-pack.addFormula({
-  name: "FetchRelatedContent",
-  description: "Fetch related content using the legacy Jina.ai Reader API.",
-  parameters: [
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "id",
-      description: "The content ID for which to fetch related content.",
-    }),
-  ],
-  resultType: coda.ValueType.Array,
-  items: ContentSchema,
-  execute: async function ([id], context) {
-    let url = `https://api.jina.ai/reader/content/${id}/related`;
-    let response = await context.fetcher.fetch({
-      method: "GET",
-      url: url,
-    });
-    return response.body.items.map(item => ({
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      url: item.url,
-    }));
   },
 });
